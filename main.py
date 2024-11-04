@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import streamlit as st
-import yt_dlp
+from email.policy import default
 from io import BytesIO
 from contextlib import redirect_stdout
+
+import yt_dlp
+import streamlit as st
+
 
 AUDIO_QUALITY = {
     "High": 192,
@@ -17,7 +20,7 @@ is_playlist = st.checkbox("Is this a playlist?")
 file_format = st.selectbox("Select Format", ["mp3", "mp4"])
 quality = st.selectbox("Audio Quality", tuple(AUDIO_QUALITY.keys()))
 
-ydl_opts = {
+YDL_OPTS = {
     # 'format': 'bestaudio/best' if file_format == "mp3" else 'best',
     # "outtmpl": "%(title)s.%(ext)s",
     "noplaylist": not is_playlist,
@@ -28,19 +31,20 @@ ydl_opts = {
 
 
 def download_video(url: str) -> (BytesIO, str):  # (bytes, title)
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
         # Get video info
         info = ydl.extract_info(url, download=False)
         title = info.get("title", "Unknown Title")
         thumbnail_url = info.get("thumbnail")
+
     st.write(f"**Title:** {title}")
     if thumbnail_url:
         st.image(thumbnail_url, width=300)
 
     # Set format and quality
     if file_format == "mp3":
-        ydl_opts["format"] = "bestaudio"
-        ydl_opts["postprocessors"] = [
+        YDL_OPTS["format"] = "bestaudio"
+        YDL_OPTS["postprocessors"] = [
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
@@ -48,26 +52,58 @@ def download_video(url: str) -> (BytesIO, str):  # (bytes, title)
             }
         ]
     elif file_format == "mp4":
-        ydl_opts["format"] = "bestvideo+bestaudio"
+        YDL_OPTS["format"] = "bestvideo+bestaudio"
 
     # Download the video
     with st.spinner("Downloading video ..."):
         buf = BytesIO()
-        with redirect_stdout(buf), yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with redirect_stdout(buf), yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
             ydl.download([url])
 
-    st.success('Download complete')
+    st.success("Download complete")
 
     return buf, title
 
 
 def download_bytes(buf: BytesIO, title: str) -> None:
     st.download_button(
-        label="Download File",
+        label="Save video",
         data=buf,
-        file_name=f"{title}.{file_format}",
+        file_name=f"{title} - {quality.lower()}.{file_format}",
         mime="audio/mp3" if file_format == "mp3" else "video/mp4",
     )
+
+
+def select_playlist_videos_and_download() -> None:  # list of video objects
+    with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    videos = info.get("entries")
+    urls = [x['url'] for x in videos]
+    # st.session_state['playlist_videos'] = videos
+
+    with st.form("my_form"):
+        st.write("### Select videos to download:")
+
+        for i, video in enumerate(videos, start=1):
+            st.checkbox(f'{i}\t- {video.get("title")}', key=f"video-checkbox-{i}")
+
+        def on_form_submit():
+            checkboxes = (
+                st.session_state[f"video-checkbox-{i}"] for i in range(1, len(videos) + 1)
+            )
+            print(videos, checkboxes)
+            selected_urls = [
+                url
+                for url, selected in zip(urls, checkboxes, strict=True)
+                if selected
+            ]
+
+            for url in selected_urls:
+                buf, title = download_video(url)
+                download_bytes(buf, title)
+
+        st.form_submit_button("Download", on_click=on_form_submit)
 
 
 if st.button("Download"):
@@ -77,35 +113,9 @@ if st.button("Download"):
                 buf, title = download_video(url)
                 download_bytes(buf, title)
             else:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
+                select_playlist_videos_and_download()
 
-                with st.form("my_form"):
-                    st.write("### Select videos to download:")
-
-                    entries = info.get("entries") if is_playlist else [info]
-                    videos = []
-                    print("videos = [")
-                    for i, video in enumerate(entries, start=1):
-                        title = video.get("title", f"Video {i}")
-                        # add number to the key so its "guaranteed" to be unique
-                        checkbox_key = f"{title} ({i})"
-                        ck = st.checkbox(f"{title}", key=f"{title} ({i})")
-                        videos.append((ck, video))
-                        print("added vid")
-
-                    if st.form_submit_button(
-                        "Download",
-                        on_click=lambda: (
-                            print(videos),
-                            [download_video(vid, info) for x, vid in videos if x],
-                        ),
-                    ):
-                        print("yeah?")
-                        for x in videos:
-                            print(x)
-
-        except Exception as e:
+        except ZeroDivisionError as e:
             st.error(f"Error: {e}")
     else:
         st.warning("Please enter a valid URL.")
