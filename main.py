@@ -81,27 +81,33 @@ def select_playlist_videos_and_download() -> None:  # list of video objects
     urls = [x['url'] for x in videos]
     # st.session_state['playlist_videos'] = videos
 
-    with st.form("my_form"):
-        st.write("### Select videos to download:")
 
-        for i, video in enumerate(videos, start=1):
-            st.checkbox(f'{i}\t- {video.get("title")}', key=f"video-checkbox-{i}")
+    def populate_form():
+        with st.form("my_form"):
+            st.write("### Select videos to download:")
 
-        def on_form_submit():
-            checkboxes = (
-                st.session_state[f"video-checkbox-{i}"] for i in range(1, len(videos) + 1)
-            )
-            selected_urls = [
-                url
-                for url, selected in zip(urls, checkboxes, strict=True)
-                if selected
-            ]
+            for i, video in enumerate(videos, start=1):
+                st.checkbox(f'{i}\t- {video.get("title")}', key=f"video-checkbox-{i}")
 
-            for url in selected_urls:
-                buf, title = download_video(url)
-                download_bytes(buf, title)
+            def on_form_submit():
+                checkboxes = (
+                    st.session_state[f"video-checkbox-{i}"] for i in range(1, len(videos) + 1)
+                )
+                selected_urls = [
+                    url
+                    for url, selected in zip(urls, checkboxes, strict=True)
+                    if selected
+                ]
 
-        st.form_submit_button("Download", on_click=on_form_submit)
+                for url in selected_urls:
+                    buf, title = download_video(url)
+                    download_bytes(buf, title)
+
+            st.form_submit_button("Download", on_click=on_form_submit)
+
+    st.checkbox('Select all', on_change=populate_form)
+
+    populate_form()
 
 
 if st.button("Download"):
