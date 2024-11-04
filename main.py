@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from email.policy import default
 from io import BytesIO
 from contextlib import redirect_stdout
 
@@ -92,7 +91,6 @@ def select_playlist_videos_and_download() -> None:  # list of video objects
             checkboxes = (
                 st.session_state[f"video-checkbox-{i}"] for i in range(1, len(videos) + 1)
             )
-            print(videos, checkboxes)
             selected_urls = [
                 url
                 for url, selected in zip(urls, checkboxes, strict=True)
