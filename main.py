@@ -105,7 +105,7 @@ def select_playlist_videos_and_download() -> None:  # list of video objects
 
             st.form_submit_button("Download", on_click=on_form_submit)
 
-    st.checkbox('Select all', on_change=populate_form)
+    # st.checkbox('Select all', on_change=populate_form)
 
     populate_form()
 
